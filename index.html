@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>Track current location - 4.8</title>
+  <title>Track widget simulation - 4.8</title>
 
   <style>
     html,
@@ -12,49 +12,86 @@
       padding: 0;
       margin: 0;
       height: 100%;
-      width: 100%;
     }
   </style>
   <link rel="stylesheet" href="https://js.arcgis.com/4.8/esri/css/main.css">
+
+  <script>
+      var dojoConfig = {
+          packages: [{
+              name: "geolocate",
+              location: "//2gis.github.io/mock-geolocation/dist",
+              main: "geolocate"
+          }]
+      }
+  </script>
+
   <script src="https://js.arcgis.com/4.8/"></script>
 
   <script>
-    require([
-      "esri/widgets/Track",
-      "esri/views/MapView",
-      "esri/Map",
-      "dojo/domReady!"
-    ], function(
-      Track, MapView, Map
-    ) {
+      require([
+          "geolocate", // geolocation simulator (https://github.com/2gis/mock-geolocation)
+          "esri/widgets/Track",
+          "esri/views/SceneView",
+          "esri/Map",
+          "dojo/domReady!"
+      ], function(
+          geolocate,
+          Track,
+          SceneView,
+          Map
+      ) {
 
-      var map = new Map({
-        basemap: "topo"
-      });
+          var map = new Map({
+              basemap: "topo"
+          });
 
-      var view = new MapView({
-        map: map,
-        container: "viewDiv"
-      });
+          var view = new SceneView({
+              map: map,
+              container: "viewDiv",
+              center: [-117.1870380, 34.0573220],
+              zoom: 18,
+              ui: {
+                  components: ["attribution"] // replace default set of UI components
+              }
+          });
 
-      // Create an instance of the Track widget
-      // and add it to the view's UI
-      var track = new Track({
-        view: view
-      });
-      view.ui.add(track, "top-left");
+          var track = new Track({
+              view: view,
+              goToLocationEnabled: false // disable this since we want to control what happens after our location is acquired
+          });
+          view.ui.add(track, "top-left");
 
-      // The sample will start tracking your location
-      // once the view becomes ready
-      view.when(function() {
-        track.start();
+          view.when(function() {
+              var i;
+              var coords = []
+              for (i = 0; i < 3; i++) {
+                track.on("track", function () {
+                    var location = track.graphic.geometry;
+                    var lat = location.latitude;
+                    var long = location.longitude;
+                    coords.push(lat)
+                    coords.push(long)
+                    var start = new Date().getTime();
+                    for (var i = 0; i < 1e7; i++) {
+                        if ((new Date().getTime() - start) > 5000){
+                            break;
+                        }
+                    }
+                    alert(coords)
+                });
+
+          }
+
+              track.start();
+          });
       });
-    });
   </script>
 </head>
 
 <body>
-  <div id="viewDiv"></div>
+<div id="viewDiv"></div>
+<div id ="coords"></div>
 </body>
 
 </html>
