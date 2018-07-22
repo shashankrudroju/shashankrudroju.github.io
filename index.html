@@ -1,206 +1,472 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    <title>Track widget simulation - 4.8</title>
+    <meta name="viewport"
+          content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>Update FeatureLayer using applyEdits() - 4.8</title>
+
+    <link rel="stylesheet"
+          href="https://js.arcgis.com/4.8/esri/css/main.css">
+    <script src="https://js.arcgis.com/4.8/"></script>
 
     <style>
-        html,
-        body,
-        #viewDiv {
+        html, body, #viewDiv {
             padding: 0;
             margin: 0;
             height: 100%;
+            width: 100%;
+        }
+
+        .editArea-container {
+            background: #fff;
+            font-family: "Avenir Next W00", "Helvetica Neue", Helvetica, Arial,
+            sans-serif;
+            line-height: 1.5em;
+            overflow: auto;
+            padding: 12px 15px;
+            width: 300px;
+        }
+
+        .edit-button:hover, .edit-button:focus {
+            background-color: #e4e4e4;
+        }
+
+        .inputInfo {
+            font-size: 12px;
+            height: 32px;
+            margin-bottom: 6px;
+            padding: 0 6px;
+            width: 100%;
+        }
+
+        .list-heading {
+            font-weight: normal;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #323232;
+        }
+
+        .edit-button {
+            font-size: 14px;
+            height: 32px;
+            margin-top: 10px;
+            width: 100%;
+            background-color: transparent;
+            border: 1px solid #0079c1;
+            color: #0079c1;
+        }
+
+        .or-wrap {
+            background-color: #e0e0e0;
+            height: 1px;
+            margin: 2em 0;
+            overflow: visible;
+        }
+
+        .or-text {
+            background: #fff;
+            line-height: 0;
+            padding: 0 1em;
+            position: relative;
+            top: -.75em;
+        }
+
+        input:invalid {
+            border: 1px solid red;
+        }
+
+        input:valid {
+            border: 1px solid green;
         }
     </style>
-    <link rel="stylesheet" href="https://js.arcgis.com/4.8/esri/css/main.css">
-
-    <script>
-        var dojoConfig = {
-            packages: [{
-                name: "geolocate",
-                location: "//2gis.github.io/mock-geolocation/dist",
-                main: "geolocate"
-            }]
-        }
-    </script>
-
-    <script src="https://js.arcgis.com/4.8/"></script>
 
     <script>
         require([
-            "geolocate", // geolocation simulator (https://github.com/2gis/mock-geolocation)
-            "esri/widgets/Track",
-            "esri/views/SceneView",
-            "esri/Map",
-            "dojo/domReady!"
-        ], function(
-            geolocate,
-            Track,
-            SceneView,
-            Map
-        ) {
+                "esri/Map",
+                "esri/widgets/Track",
+                "esri/views/SceneView",
+                "esri/layers/Layer",
+                "esri/Graphic",
+                "esri/widgets/Expand",
+                "esri/widgets/Home",
+                "esri/geometry/Extent",
+                "esri/Viewpoint",
+                "esri/core/watchUtils",
+                "dojo/on",
+                "dojo/dom",
+                "dojo/domReady!"
+            ],
+            function(
+                Map, Track, SceneView, Layer, Graphic, Expand,
+                Home, Extent, Viewpoint, watchUtils,
+                on, dom
+            ) {
 
-            // geolocation simulator
-            stubGeolocation();
+                var featureLayer, editExpand;
 
-            var map = new Map({
-                basemap: "topo"
-            });
-
-            var view = new SceneView({
-                map: map,
-                container: "viewDiv",
-                center: [-117.1870380, 34.0573220],
-                zoom: 18,
-                ui: {
-                    components: ["attribution"] // replace default set of UI components
-                }
-            });
-
-            var track = new Track({
-                view: view,
-                goToLocationEnabled: false // disable this since we want to control what happens after our location is acquired
-            });
-            view.ui.add(track, "top-left");
-
-            view.when(function() {
-
-                var prevLocation = view.center;
-
-                track.on("track", function() {
-                    var location = track.graphic.geometry;
-
-                    view.goTo({
-                        center: location,
-                        tilt: 50,
-                        scale: 2500,
-                        heading: 360 - getHeading(location, prevLocation)
-                    });
-
-                    prevLocation = location.clone();
+                // feature edit area domNodes
+                var editArea, attributeEditing, inputDescription,
+                    updateInstructionDiv, deleteArea;
+                var btnAddFeature = dom.byId("btnAddFeature");
+                deleteArea = dom.byId("deleteArea");
+                var map = new Map({
+                    basemap: "streets"
                 });
 
-                track.start();
+                // initial extent of the view and home button
+                var initialExtent = new Extent({
+                    xmin: -13045631,
+                    xmax: -13042853,
+                    ymin: 4034880,
+                    ymax: 4034881,
+                    spatialReference: 102100
+                });
+
+                var view = new SceneView({
+                    container: "viewDiv",
+                    map: map,
+                    extent: initialExtent
+                });
+
+                var track = new Track({
+                    view: view,
+                    goToLocationEnabled: false // disable this since we want to control what happens after our location is acquired
+                });
+                view.ui.add(track, "top-left");
+
+                // add an editable featurelayer from portal
+                Layer.fromPortalItem({
+                    // autocasts as new PortalItem()
+                    id: "571496ce43f84c2eb4edaccc4d3e5502"
+
+                }).then(addLayer)
+                    .catch(handleLayerLoadError);
+
+                setupEditing();
+                setupView();
+
+                function addLayer(layer) {
+                    featureLayer = layer;
+                    map.add(layer);
+                }
+
+                function applyEdits(params) {
+                    unselectFeature();
+                    var promise = featureLayer.applyEdits(params);
+                    editResultsHandler(promise);
+                }
+
+                // *****************************************************
+                // applyEdits promise resolved successfully
+                // query the newly created feature from the featurelayer
+                // set the editFeature object so that it can be used
+                // to update its features.
+                // *****************************************************
+                function editResultsHandler(promise) {
+                    promise
+                        .then(function(editsResult) {
+                            var extractuid = function(result) {
+                                return result.uid;
+                            };
+
+                            // get the uid of the newly added feature
+                            if (editsResult.addFeatureResults.length > 0) {
+                                var adds = editsResult.addFeatureResults.map(
+                                    extractuid);
+                                newIncidentId = adds[0];
+
+                                selectFeature(newIncidentId);
+                            }
+                        })
+                        .catch(function(error) {
+                            console.log("===============================================");
+                            console.error("[ applyEdits ] FAILURE: ", error.code, error.name,
+                                error.message);
+                            console.log("error = ", error);
+                        });
+                }
+
+                // *****************************************************
+                // listen to click event on the view
+                // 1. select if there is an intersecting feature
+                // 2. set the instance of editFeature
+                // 3. editFeature is the feature to update or delete
+                // *****************************************************
+                view.on("click", function(event) {
+                    unselectFeature();
+                    view.hitTest(event).then(function(response) {
+                        if (response.results.length > 0 && response.results[0].graphic) {
+
+                            var feature = response.results[0].graphic;
+                            selectFeature(feature.attributes[featureLayer.uidField]);
+
+                            inputDescription.value = feature.attributes[
+                                ""];
+                            //inputUserInfo.value = feature.attributes[
+                            //  "Incident_Address"];
+                            deleteArea.style.display = "block";
+                            //updateInstructionDiv.style.display = "none";
+                        }
+                    });
+                });
+
+                // *****************************************************
+                // select Feature function
+                // 1. Select the newly created feature on the view
+                // 2. or select an existing feature when user click on it
+                // 3. Symbolize the feature with cyan rectangle
+                // *****************************************************
+                function selectFeature(uid) {
+                    // symbol for the selected feature on the view
+                    var selectionSymbol = {
+                        type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+                        color: [0, 0, 0, 0],
+                        style: "square",
+                        size: "40px",
+                        outline: {
+                            color: [0, 255, 255, 1],
+                            width: "3px"
+                        }
+                    };
+                    var query = featureLayer.createQuery();
+                    query.where = featureLayer.uidField + " = " + uid;
+                    featureLayer.queryFeatures(query).then(function(results) {
+                        if (results.features.length > 0) {
+                            editFeature = results.features[0];
+                            editFeature.symbol = selectionSymbol;
+                            view.graphics.add(editFeature);
+                        }
+                    });
+                }
+
+                // *****************************************************
+                // hide attributes update and delete part when necessary
+                // *****************************************************
+                function unselectFeature() {
+                    attributeEditing.style.display = "none";
+                    updateInstructionDiv.style.display = "block";
+
+                    inputDescription.value = null;
+                    //inputUserInfo.value = null;
+                    view.graphics.removeAll();
+                }
+
+                // *****************************************************
+                // add homeButton and expand widgets to UI
+                // *****************************************************
+                function setupView() {
+                    // set home buttone view point to initial extent
+                    var homeButton = new Home({
+                        view: view,
+                        viewpoint: new Viewpoint({
+                            targetGeometry: initialExtent
+                        })
+                    });
+                    view.ui.add(homeButton, "top-left");
+
+                    // expand widget
+                    editExpand = new Expand({
+                        expandIconClass: "esri-icon-edit",
+                        expandTooltip: "Expand Edit",
+                        expanded: true,
+                        view: view,
+                        content: editArea
+                    });
+                    view.ui.add(editExpand, "top-right");
+                }
+
+                // *****************************************************
+                // set up for editing
+                // *****************************************************
+                function setupEditing() {
+                    // input boxes for the attribute editing
+                    editArea = dom.byId("editArea");
+                    updateInstructionDiv = dom.byId("updateInstructionDiv");
+                    attributeEditing = dom.byId("featureUpdateDiv");
+                    inputDescription = dom.byId("inputDescription");
+                    //inputUserInfo = dom.byId("inputUserInfo");
+
+                    // *****************************************************
+                    // btnUpdate click event
+                    // update attributes of selected feature
+                    // *****************************************************
+                    on(dom.byId("btnUpdate"), "click", function(event) {
+                        unselectFeature();
+
+                        event.stopPropagation();
+
+                        var prevLocation = view.center;
+                        track.start();
+                        track.on("track", function(TrackEvent) {
+                            var location = track.graphic.geometry;
+                            //var lat = location.latitude.toString();
+                            //var long = location.longitude.toString();
+                            //var latLong = lat.concat(' ', long);
+                            view.goTo({
+                                center: location,
+                                tilt: 50,
+                                scale: 2500,
+                                heading: 360 - getHeading(location, prevLocation)
+                            });
+                            point = location;
+                            point.z = undefined;
+                            point.hasZ = false;
+
+                            newIncident = new Graphic({
+                                geometry: point,
+                                attributes: {time: new Date()}
+                            });
+
+                            var edits = {
+                                addFeatures: [newIncident]
+                            };
+
+                            applyEdits(edits);
+
+                            // ui changes in response to creating a new feature
+                            // display feature update and delete portion of the edit area
+                            //attributeEditing.style.display = "block";
+                            //updateInstructionDiv.style.display = "none";
+                            dom.byId("viewDiv").style.cursor = "auto";
+
+                            // change the view's mouse cursor once user selects
+                            // a new incident type to create
+                            dom.byId("viewDiv").style.cursor = "crosshair";
+                            editArea.style.cursor = "auto";
+
+                            prevLocation = location.clone();
+                        });                    });
+
+                    // *****************************************************
+                    // btnAddFeature click event
+                    // create a new feature at the click location
+                    // *****************************************************
+                    on(dom.byId("btnAddFeature"), "click", function() {
+                        //unselectFeature();
+                        //var btnAddFeature = dom.byId("btnAddFeature");
+                        btnAddFeature.value = "Stop Tracking";
+                        btnAddFeature.style.color = "red";
+                        event.stopPropagation();
+
+                        var prevLocation = view.center;
+                        track.start();
+                        track.on("track", function(TrackEvent) {
+                            var location = track.graphic.geometry;
+                            //var lat = location.latitude.toString();
+                            //var long = location.longitude.toString();
+                            //var latLong = lat.concat(' ', long);
+                            view.goTo({
+                                center: location,
+                                tilt: 50,
+                                scale: 2500,
+                                heading: 360 - getHeading(location, prevLocation)
+                            });
+                            point = location;
+                            point.z = undefined;
+                            point.hasZ = false;
+
+                            newIncident = new Graphic({
+                                geometry: point,
+                                attributes: {time: new Date()}
+                            });
+
+                            var edits = {
+                                addFeatures: [newIncident]
+                            };
+
+                            applyEdits(edits);
+
+                            // ui changes in response to creating a new feature
+                            // display feature update and delete portion of the edit area
+                            //attributeEditing.style.display = "block";
+                            //updateInstructionDiv.style.display = "none";
+                            dom.byId("viewDiv").style.cursor = "auto";
+
+                            // change the view's mouse cursor once user selects
+                            // a new incident type to create
+                            //dom.byId("viewDiv").style.cursor = "crosshair";
+                            editArea.style.cursor = "auto";
+
+                            prevLocation = location.clone();
+                        });
+                    });
+
+                    function getHeading(point, oldPoint) {
+                        // get angle between two points
+                        var angleInDegrees = Math.atan2(point.y - oldPoint.y, point.x -
+                            oldPoint.x) * 180 /
+                            Math.PI;
+
+                        // move heading north
+                        return -90 + angleInDegrees;
+                    }
+
+                    // *****************************************************
+                    // delete button click event. ApplyEdits is called
+                    // with the selected feature to be deleted
+                    // *****************************************************
+                    on(dom.byId("btnDelete"), "click", function() {
+                        var edits = {
+                            deleteFeatures: [editFeature]
+                        };
+                        applyEdits(edits);
+                    });
+
+                    // *****************************************************
+                    // watch for view LOD change. Display Feature editing
+                    // area when view.zoom level is 14 or higher
+                    //.catch hide the feature editing area
+                    // *****************************************************
+                    view.when(function() {
+                        watchUtils.whenTrue(view, "stationary", function() {
+                            if (editExpand) {
+                                if (view.zoom <= 14) {
+                                    editExpand.domNode.style.display = "none";
+                                } else {
+                                    editExpand.domNode.style.display = "block";
+                                }
+                            }
+                        });
+                    });
+                }
+
+                function handleLayerLoadError(error) {
+                    console.log("Layer failed to load: ", error);
+                }
             });
-
-            function getHeading(point, oldPoint) {
-                // get angle between two points
-                var angleInDegrees = Math.atan2(point.y - oldPoint.y, point.x -
-                    oldPoint.x) * 180 /
-                    Math.PI;
-
-                // move heading north
-                return -90 + angleInDegrees;
-            }
-
-            // geolocation simulator
-            function stubGeolocation() {
-                var coords = [
-                        {
-                            lat: 34.05648363780692,
-                            lng: -117.19565501782613
-                        },
-                        {
-                            lng: -117.19565880345007,
-                            lat: 34.05682230352545
-                        },
-                        {
-                            lng: -117.19566258907402,
-                            lat: 34.05716096924398
-                        },
-                        {
-                            lng: -117.19566637469796,
-                            lat: 34.05749963496251
-                        },
-                        {
-                            lng: -117.19567016032191,
-                            lat: 34.05783830068104
-                        },
-                        {
-                            lng: -117.19567394594586,
-                            lat: 34.05817696639957
-                        },
-                        {
-                            lng: -117.1956777315698,
-                            lat: 34.0585156321181
-                        },
-                        {
-                            lng: -117.19568151719375,
-                            lat: 34.05885429783663
-                        },
-                        {
-                            lng: -117.1956853028177,
-                            lat: 34.05919296355516
-                        },
-                        {
-                            lat: 34.059192963555134,
-                            lng: -117.19568530281771
-                        },
-                        {
-                            lat: 34.05920092649827,
-                            lng: -117.19575894615099
-                        },
-                        {
-                            lng: -117.19575574232981,
-                            lat: 34.058861053180614
-                        },
-                        {
-                            lng: -117.19575253850863,
-                            lat: 34.05852117986296
-                        },
-                        {
-                            lng: -117.19574933468745,
-                            lat: 34.0581813065453
-                        },
-                        {
-                            lng: -117.19574613086627,
-                            lat: 34.057841433227644
-                        },
-                        {
-                            lng: -117.19574292704509,
-                            lat: 34.05750155990999
-                        },
-                        {
-                            lng: -117.19573972322391,
-                            lat: 34.05716168659233
-                        },
-                        {
-                            lng: -117.19573651940273,
-                            lat: 34.056821813274674
-                        },
-                        {
-                            lng: -117.19573331558155,
-                            lat: 34.05648193995702
-                        },
-                        {
-                            lat: 34.05648193995701,
-                            lng: -117.19573331558153
-                        },
-                        {
-                            lng: -117.19569416670383,
-                            lat: 34.056482788881965
-                        },
-                        {
-                            lng: -117.19565501782613,
-                            lat: 34.05648363780692
-                        }],
-                    currentCoordIndex = 0;
-
-                geolocate.use();
-
-                setInterval(function() {
-                    geolocate.change(coords[currentCoordIndex]);
-                    currentCoordIndex = (currentCoordIndex + 1) % coords.length;
-                }, 1500);
-
-            }
-        });
     </script>
 </head>
 
 <body>
+<div id="editArea" class="editArea-container">
+    <div id="addFeatureDiv">
+        <input type="button" class="edit-button" value="Start Tracking"
+               id="btnAddFeature">
+    </div>
+
+    <div id="updateInstructionDiv" style="text-align: center">
+        <p class="or-wrap">
+            <span class="or-text">Or</span>
+        </p>
+        <p>Drop a pin at this location with description</p>
+    </div>
+
+    <div id="featureUpdateDiv" style="margin-top: 1em;">
+        <div id="attributeArea">
+            <label for="inputDescription">Description:</label> <input
+                class="inputInfo" type="text" id="inputDescription"
+                placeHolder="Enter description"> <br> <br> <input
+                type="button" class="edit-button" value="Drop pin" id="btnUpdate">
+        </div>
+
+        <div id="deleteArea" style="display: none;">
+            <input type="button" class="edit-button" value="Delete dropped pin"
+                   id="btnDelete">
+        </div>
+    </div>
+</div>
 <div id="viewDiv"></div>
 </body>
 
