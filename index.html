@@ -111,6 +111,7 @@
                     updateInstructionDiv, deleteArea;
                 var btnAddFeature = dom.byId("btnAddFeature");
                 deleteArea = dom.byId("deleteArea");
+                var btnStopFeature = dom.byId("btnStopFeature");
                 var map = new Map({
                     basemap: "streets"
                 });
@@ -153,7 +154,7 @@
                 }
 
                 function applyEdits(params) {
-                    unselectFeature();
+                    //unselectFeature();
                     var promise = featureLayer.applyEdits(params);
                     editResultsHandler(promise);
                 }
@@ -167,17 +168,17 @@
                 function editResultsHandler(promise) {
                     promise
                         .then(function(editsResult) {
-                            var extractuid = function(result) {
-                                return result.uid;
+                            var extractObjectId = function(result) {
+                                return result.objectId;
                             };
 
-                            // get the uid of the newly added feature
+                            // get the objectId of the newly added feature
                             if (editsResult.addFeatureResults.length > 0) {
                                 var adds = editsResult.addFeatureResults.map(
-                                    extractuid);
+                                    extractObjectId);
                                 newIncidentId = adds[0];
 
-                                selectFeature(newIncidentId);
+                                //selectFeature(newIncidentId);
                             }
                         })
                         .catch(function(error) {
@@ -195,15 +196,15 @@
                 // 3. editFeature is the feature to update or delete
                 // *****************************************************
                 view.on("click", function(event) {
-                    unselectFeature();
+                    //unselectFeature();
                     view.hitTest(event).then(function(response) {
                         if (response.results.length > 0 && response.results[0].graphic) {
 
                             var feature = response.results[0].graphic;
-                            selectFeature(feature.attributes[featureLayer.uidField]);
+                            selectFeature(feature.attributes[featureLayer.objectIdField]);
 
                             inputDescription.value = feature.attributes[
-                                ""];
+                                "Location_Info"];
                             //inputUserInfo.value = feature.attributes[
                             //  "Incident_Address"];
                             deleteArea.style.display = "block";
@@ -218,7 +219,7 @@
                 // 2. or select an existing feature when user click on it
                 // 3. Symbolize the feature with cyan rectangle
                 // *****************************************************
-                function selectFeature(uid) {
+                function selectFeature(objectId) {
                     // symbol for the selected feature on the view
                     var selectionSymbol = {
                         type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
@@ -231,7 +232,7 @@
                         }
                     };
                     var query = featureLayer.createQuery();
-                    query.where = featureLayer.uidField + " = " + uid;
+                    query.where = featureLayer.objectIdField + " = " + objectId;
                     featureLayer.queryFeatures(query).then(function(results) {
                         if (results.features.length > 0) {
                             editFeature = results.features[0];
@@ -265,7 +266,6 @@
                         })
                     });
                     view.ui.add(homeButton, "top-left");
-
                     // expand widget
                     editExpand = new Expand({
                         expandIconClass: "esri-icon-edit",
@@ -293,13 +293,12 @@
                     // update attributes of selected feature
                     // *****************************************************
                     on(dom.byId("btnUpdate"), "click", function(event) {
-                        unselectFeature();
-
+                        //unselectFeature();
                         event.stopPropagation();
 
                         var prevLocation = view.center;
                         track.start();
-                        track.on("track", function(TrackEvent) {
+                        track.on("track", function() {
                             var location = track.graphic.geometry;
                             //var lat = location.latitude.toString();
                             //var long = location.longitude.toString();
@@ -316,7 +315,7 @@
 
                             newIncident = new Graphic({
                                 geometry: point,
-                                attributes: {time: new Date()}
+                                attributes: {time: new Date(),Location_Info:"esri"}
                             });
 
                             var edits = {
@@ -329,15 +328,24 @@
                             // display feature update and delete portion of the edit area
                             //attributeEditing.style.display = "block";
                             //updateInstructionDiv.style.display = "none";
-                            dom.byId("viewDiv").style.cursor = "auto";
+                            //dom.byId("viewDiv").style.cursor = "auto";
 
                             // change the view's mouse cursor once user selects
                             // a new incident type to create
-                            dom.byId("viewDiv").style.cursor = "crosshair";
-                            editArea.style.cursor = "auto";
+                            //dom.byId("viewDiv").style.cursor = "crosshair";
+                            //editArea.style.cursor = "auto";
 
                             prevLocation = location.clone();
-                        });                    });
+                        });
+                    });
+
+                    // *****************************************************
+                    // btnStopFeature click event
+                    // stop tracking the location
+                    on(dom.byId("btnStopFeature"), "click", function() {
+                        btnStopFeature.style.display = "none";
+                        btnAddFeature.style.display = "block";
+                    });
 
                     // *****************************************************
                     // btnAddFeature click event
@@ -345,14 +353,13 @@
                     // *****************************************************
                     on(dom.byId("btnAddFeature"), "click", function() {
                         //unselectFeature();
-                        //var btnAddFeature = dom.byId("btnAddFeature");
-                        btnAddFeature.value = "Stop Tracking";
-                        btnAddFeature.style.color = "red";
+                        btnAddFeature.style.display = "none";
+                        btnStopFeature.style.display = "block";
                         event.stopPropagation();
 
                         var prevLocation = view.center;
                         track.start();
-                        track.on("track", function(TrackEvent) {
+                        track.on("track", function() {
                             var location = track.graphic.geometry;
                             //var lat = location.latitude.toString();
                             //var long = location.longitude.toString();
@@ -369,7 +376,7 @@
 
                             newIncident = new Graphic({
                                 geometry: point,
-                                attributes: {time: new Date()}
+                                attributes: {time: new Date(),Location_Info:"default"}
                             });
 
                             var edits = {
@@ -382,12 +389,12 @@
                             // display feature update and delete portion of the edit area
                             //attributeEditing.style.display = "block";
                             //updateInstructionDiv.style.display = "none";
-                            dom.byId("viewDiv").style.cursor = "auto";
+                            //dom.byId("viewDiv").style.cursor = "auto";
 
                             // change the view's mouse cursor once user selects
                             // a new incident type to create
                             //dom.byId("viewDiv").style.cursor = "crosshair";
-                            editArea.style.cursor = "auto";
+                            //editArea.style.cursor = "auto";
 
                             prevLocation = location.clone();
                         });
@@ -444,6 +451,10 @@
     <div id="addFeatureDiv">
         <input type="button" class="edit-button" value="Start Tracking"
                id="btnAddFeature">
+    </div>
+    <div id="stopFeatureDiv">
+        <input type="button" class="edit-button" value="Stop Tracking" style="display:none;"
+               id="btnStopFeature">
     </div>
 
     <div id="updateInstructionDiv" style="text-align: center">
