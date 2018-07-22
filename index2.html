@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head><title>GPS Tracker</title><meta charset="utf-8">
+    <style>
+        input, textarea { -webkit-box-sizing: border-box; }
+        input { width: 100%; font-size: 20px; }
+        textarea { width: 100%; height: 500px; }
+        input[type="button"],
+        input[type="submit"] { width: 24%; }
+        body { text-align: center; }
+    </style>
+<body>
+<form action="" method="post">
+    <input name="t_action" value="http://localhost:63344/shashankrudroju.github.io/save.php">
+    <textarea readonly name="coords"></textarea>
+    <input value="Start Tracking" type="button" onclick="startTracking();this.disabled=true;">
+    <input value="Reset Trip" type="button" onclick="resetTrip();">
+    <input value="Use Server" type="button" onclick="this.form.t_action.value = 'savetrip.php';">
+    <input type="submit" onclick="this.form.action = this.form.t_action.value;">
+
+</form>
+<script>
+    var dojoConfig = {
+        packages: [{
+            name: "geolocate",
+            location: "//2gis.github.io/mock-geolocation/dist",
+            main: "geolocate"
+        }]
+    }
+</script>
+
+<script src="https://js.arcgis.com/4.8/"></script>
+
+<script src = 'define.js'>
+
+        var ta = document.querySelector('textarea');
+        var lt = 0;
+        var ls = false;
+
+        (function () {
+            var tr = localStorage.getItem('trip');
+            if (tr != '' && tr != null) {
+                ta.value = tr + '\n';
+            }
+        })();
+
+        function addHeader() {
+            ta.value += '-- tracking started: ' + (new Date().toString()) + '\n';
+            ta.value += (new Date().getTime()) + ' // start\n';
+            localStorage.setItem('trip', ta.value);
+        }
+
+        function resetTrip() {
+            if (!confirm('Are you sure you want to clear your trip?'))
+                return false;
+            localStorage.setItem('trip', '');
+            ta.value = '';
+            addHeader();
+        }
+
+        function startTracking() {
+            alert('In start tracking');
+            //var Track = require("esri/widgets/Track");
+                var track = new Track({
+                    goToLocationEnabled: false // disable this since we want to control what happens after our location is acquired
+                });
+                addHeader();
+                track.on("track", function () {
+                        alert('Inside track on function')
+                        var now = new Date().getTime();
+                        if (ls != 1 || now - lt > 10000) {
+                            ta.value += now + ' // ' + track.graphic.geometry.latitude + ' // ' + track.graphic.geometry.longitude + '\n';
+                            localStorage.setItem('trip', ta.value);
+                            lt = now;
+                            ls = 1;
+                        }
+                    },
+                    function () {
+                        var now = new Date().getTime();
+                        if (ls != 0 || now - lt > 10000) {
+                            ta.value += now + ' // fail\n';
+                            localStorage.setItem('trip', ta.value);
+                            lt = now;
+                            ls = 0;
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 60000,
+                        timeout: 15000
+                    }
+                );
+                track.start();
+
+        }
+
+</script>
+<div id="viewDiv"></div>
+</body>

@@ -1,0 +1,1 @@
+<?php file_put_contents('C:\Users\shas9542\Documents\GitHub\shashankrudroju.github.io\gps.log', $_POST['coords']);
