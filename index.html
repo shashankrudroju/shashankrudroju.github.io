@@ -122,9 +122,9 @@
                     ymin: 23.848,
                     xmax: -65.73,
                     ymax: 50.15,
-                    spatialReference: {
-                        wkid: 102100
-                    }
+                    //spatialReference: {
+                     //   wkid: 102100
+                    //}
                 });
 
                 var view = new SceneView({
@@ -346,7 +346,7 @@
                         //unselectFeature();
                         btnAddFeature.style.display = "none";
                         btnStopFeature.style.display = "block";
-                        event.stopPropagation();
+                        //event.stopPropagation();
 
                         var prevLocation = view.center;
                         track.start();
