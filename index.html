@@ -118,11 +118,13 @@
 
                 // initial extent of the view and home button
                 var initialExtent = new Extent({
-                    xmin: -13045631,
-                    xmax: -13042853,
-                    ymin: 4034880,
-                    ymax: 4034881,
-                    spatialReference: 102100
+                    xmin: -126.902,
+                    ymin: 23.848,
+                    xmax: -65.73,
+                    ymax: 50.15,
+                    spatialReference: {
+                        wkid: 102100
+                    }
                 });
 
                 var view = new SceneView({
@@ -294,7 +296,7 @@
                     // *****************************************************
                     on(dom.byId("btnUpdate"), "click", function(event) {
                         //unselectFeature();
-                        event.stopPropagation();
+                        //event.stopPropagation();
 
                         var prevLocation = view.center;
                         track.start();
@@ -324,19 +326,8 @@
 
                             applyEdits(edits);
 
-                            // ui changes in response to creating a new feature
-                            // display feature update and delete portion of the edit area
-                            //attributeEditing.style.display = "block";
-                            //updateInstructionDiv.style.display = "none";
-                            //dom.byId("viewDiv").style.cursor = "auto";
-
-                            // change the view's mouse cursor once user selects
-                            // a new incident type to create
-                            //dom.byId("viewDiv").style.cursor = "crosshair";
-                            //editArea.style.cursor = "auto";
-
                             prevLocation = location.clone();
-                        });
+                        })
                     });
 
                     // *****************************************************
