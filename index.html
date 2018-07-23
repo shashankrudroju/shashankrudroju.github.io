@@ -114,17 +114,16 @@
                 var btnStopFeature = dom.byId("btnStopFeature");
                 var map = new Map({
                     basemap: "streets"
+                    //ground: "world-elevation"
                 });
 
                 // initial extent of the view and home button
                 var initialExtent = new Extent({
-                    xmin: -126.902,
-                    ymin: 23.848,
-                    xmax: -65.73,
-                    ymax: 50.15,
-                    //spatialReference: {
-                     //   wkid: 102100
-                    //}
+                    xmin: -13045631,
+                    xmax: -13042853,
+                    ymin: 4034880,
+                    ymax: 4034881,
+                    spatialReference: 102100
                 });
 
                 var view = new SceneView({
